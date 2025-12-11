@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def random_opponent(obs, invalid_action):
     valid_action = 1 - invalid_action
     probs = valid_action / valid_action.sum()
@@ -43,7 +44,7 @@ def _medium_opponent(obs, invalid_action, turn=0):
     return None
 
 
-def medium_opponent(obs, invalid_action, turn=0):
+def medium_opponent(obs, invalid_action, turn=1):
     action = _medium_opponent(obs, invalid_action, turn)
     if action:
         return action
@@ -51,7 +52,7 @@ def medium_opponent(obs, invalid_action, turn=0):
         return random_opponent(obs, invalid_action)
 
 
-def expert_opponent(obs, invalid_action, turn=0):
+def expert_opponent(obs, invalid_action, turn=1):
     action = _medium_opponent(obs, invalid_action, turn)
     if action:
         return action

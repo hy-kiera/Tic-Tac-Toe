@@ -6,9 +6,10 @@ from collections import namedtuple, defaultdict
 
 import numpy as np
 
-from tictactoe import TicTacToe, random_opponent
+from tictactoe import TicTacToe
+from opponent import random_opponent, medium_opponent, expert_opponent
 
-_Node = namedtuple("Node", "state invalid_action terminal")
+_Node = namedtuple("Node", "state invalid_action terminal status")
 
 
 class Node(_Node):
@@ -27,15 +28,25 @@ class Node(_Node):
                         state=tuple(state.flatten()),
                         invalid_action=tuple(info["invalid_action"]),
                         terminal=done,
+                        status=info["status"],
                     )
                 )
 
         return set(children)
 
-    def find_random_chlid(self):
+    def find_random_chlid(self, opponent):
         if sum(self.invalid_action) == 9:
             return None  # Terminal node
-        return random_opponent(self.array(self.invalid_action))
+        env = TicTacToe(opponent)
+        env.state = deepcopy(np.array(self.state).reshape(3, 3, 2))
+        action = random_opponent(self.array(self.invalid_action))
+        state, _, done, info = env.step(action)
+        return Node(
+            state=tuple(state.flatten()),
+            invalid_action=tuple(info["invalid_action"]),
+            terminal=done,
+            status=info["status"],
+        )
 
 
 class MCTS:
@@ -58,6 +69,7 @@ class MCTS:
                 state=tuple(state.flatten()),
                 invalid_action=tuple(info["invalid_action"]),
                 terminal=done,
+                status=info["status"],
             )
             node = self.root
             print(env.render(np.array(node.state).reshape(3, 3, 2)))
@@ -70,13 +82,13 @@ class MCTS:
                 print(env.render(np.array(node.state).reshape(3, 3, 2)))
 
                 if node.terminal:
-                    print(f"Initial pos: {i}, value: {self.values[node]}")
+                    print(f"Initial pos: {i}, value: {self.values[node]}, status: {node.status}")
                     print("==========")
                     break
 
     def choose(self, node):
         if node not in self.children:
-            return node.find_random_child()
+            return node.find_random_child(opponent=self.opponent)
 
         def score(n):
             if self.visits[n] == 0:
@@ -150,7 +162,7 @@ def main():
     seed = 0
     np.random.seed(seed)
 
-    mcts = MCTS()
+    mcts = MCTS(opponent=expert_opponent)
     mcts.run()
 
 
