@@ -1,11 +1,6 @@
 import numpy as np
 
-
-def random_opponent(obs, invalid_action):
-    valid_action = 1 - invalid_action
-    probs = valid_action / valid_action.sum()
-    action = np.random.choice(9, 1, p=probs)
-    return action
+from opponent import random_opponent
 
 
 class TicTacToe:
