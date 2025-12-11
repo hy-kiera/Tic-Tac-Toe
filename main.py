@@ -24,22 +24,31 @@ class Node:
 
 
 class MCTS:
-    def __init__(self, env, opponent=random_opponent, k=5):
-        init_state, info = env.reset()
-        self.root = Node(id=0, state=init_state, invalid_action=info["invalid_action"])
-
+    def __init__(self, opponent=random_opponent, k=5):
         self.k = k
         self.opponent = opponent
 
         self.n_node = 0
 
     def run(self):
-        self._run(self.root)
+        results = []
+        for i in range(9):
+            env = TicTacToe(opponent=self.opponent)
+            _ = env.reset()
+            state, _, _, info = env.step(i)
+            self.root = Node(id=0, state=state, invalid_action=info["invalid_action"])
 
-        path = self.find_optimal_path(self.root, [])
+            self._run(self.root)
 
-        for node in path:
-            self.visualize(node)
+            path = self.find_optimal_path(self.root, [])
+            results.append([len(path), path[-1].value])
+
+            print(f"\n=> Start from {i}")
+            for node in path:
+                self.visualize(node)
+
+        for idx, res in enumerate(results):
+            print(f"initial pos: {idx}, length: {res[0]}, value: {res[1]}")
 
     def find_optimal_path(self, node, path):
         path.append(node)
@@ -129,13 +138,11 @@ class MCTS:
 def main():
     print("Hello from tic-tac-toe!")
 
-    for seed in range(3):
-        print(f"Seed: {seed}")
-        np.random.seed(seed)
+    seed = 0
+    np.random.seed(seed)
 
-        env = TicTacToe(opponent=random_opponent)
-        mcts = MCTS(env)
-        mcts.run()
+    mcts = MCTS()
+    mcts.run()
 
 
 if __name__ == "__main__":
