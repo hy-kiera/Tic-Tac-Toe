@@ -1,138 +1,147 @@
 """Implementation of Pure Monte Carlo Game Search"""
 
+import math
 from copy import deepcopy
+from collections import namedtuple, defaultdict
 
 import numpy as np
 
 from tictactoe import TicTacToe, random_opponent
 
+_Node = namedtuple("Node", "state invalid_action terminal")
 
-class Node:
-    def __init__(self, id, state, invalid_action, action=None, childs=[]):
-        self.id = id
-        self.state = state
-        self.invalid_action = invalid_action
-        self.action = action
-        self.childs = childs
-        self.value = 0
 
-    def set_value(self, value):
-        self.value = value
+class Node(_Node):
+    def find_children(self, opponent):
+        if sum(self.invalid_action) == 9:
+            return set()  # Terminal node
 
-    def is_leaf(self):
-        return not len(self.childs)
+        env = TicTacToe(opponent)
+        children = []
+        for i in range(len(self.invalid_action)):
+            if not self.invalid_action[i]:
+                env.state = deepcopy(np.array(self.state).reshape(3, 3, 2))
+                state, _, done, info = env.step(i)
+                children.append(
+                    Node(
+                        state=tuple(state.flatten()),
+                        invalid_action=tuple(info["invalid_action"]),
+                        terminal=done,
+                    )
+                )
+
+        return set(children)
+
+    def find_random_chlid(self):
+        if sum(self.invalid_action) == 9:
+            return None  # Terminal node
+        return random_opponent(self.array(self.invalid_action))
 
 
 class MCTS:
-    def __init__(self, opponent=random_opponent, k=5):
-        self.k = k
-        self.opponent = opponent
+    def __init__(self, opponent=random_opponent, n=50, k=5, c=math.sqrt(2)):
+        self.values = defaultdict(int)  # Value of each node
+        self.visits = defaultdict(int)  # Visiting count of each node
+        self.children = dict()  # Children nodes of each node
 
-        self.n_node = 0
+        self.n = n  # The number of rollout (policy update)
+        self.c = c  # Explroation weight
+        self.k = k  # The number of simulation
+        self.opponent = opponent  # opponent policy
 
     def run(self):
-        results = []
         for i in range(9):
             env = TicTacToe(opponent=self.opponent)
             _ = env.reset()
-            state, _, _, info = env.step(i)
-            self.root = Node(id=0, state=state, invalid_action=info["invalid_action"])
+            state, _, done, info = env.step(i)  # initial position is at each cell
+            self.root = Node(
+                state=tuple(state.flatten()),
+                invalid_action=tuple(info["invalid_action"]),
+                terminal=done,
+            )
+            node = self.root
+            print(env.render(np.array(node.state).reshape(3, 3, 2)))
 
-            self._run(self.root)
+            while True:
+                for _ in range(self.n):
+                    self.rollout(node)
+                node = self.choose(node)  # Choose the best successor of node (greedy)
 
-            path = self.find_optimal_path(self.root, [])
-            results.append([len(path), path[-1].value])
+                print(env.render(np.array(node.state).reshape(3, 3, 2)))
 
-            print(f"\n=> Start from {i}")
-            for node in path:
-                self.visualize(node)
+                if node.terminal:
+                    print(f"Initial pos: {i}, value: {self.values[node]}")
+                    print("==========")
+                    break
 
-        for idx, res in enumerate(results):
-            print(f"initial pos: {idx}, length: {res[0]}, value: {res[1]}")
+    def choose(self, node):
+        if node not in self.children:
+            return node.find_random_child()
 
-    def find_optimal_path(self, node, path):
-        path.append(node)
-        while not node.is_leaf():
-            idx = np.argmax(list(map(lambda x: x.value, node.childs)))
-            node = node.childs[idx]
-            path.append(node)
+        def score(n):
+            if self.visits[n] == 0:
+                return float("-inf")  # avoid unseen moves
+            return self.values[n] / self.visits[n]  # average reward
 
-        return path
+        return max(self.children[node], key=score)
 
-    def _run(self, node):
-        node = self.select(node)
-        node, done = self.expand(node)
-        node = self.play_out(node)
-
-        if done:
-            return node
-
-        for child in node.childs:
-            self._run(child)
-
-        return node
+    def rollout(self, node):
+        path = self.select(node)
+        leaf = path[-1]
+        node = self.expand(leaf)
+        value = self.simulate(leaf)
+        self.backpropagate(path, value)
 
     def select(self, node):
-        if node.is_leaf():
-            return node
+        path = []
+        while True:
+            path.append(node)
+            if node not in self.children or not self.children[node]:
+                return path
+            unexplored = self.children[node] - self.children.keys()
+            if unexplored:
+                n = unexplored.pop()
+                path.append(n)
+                return path
+            node = self._uct_select(node)
 
-        idx = np.argmax(list(map(lambda x: x.value, node.childs)))
+    def _uct_select(self, node):
+        assert all(n in self.children for n in self.children[node])
 
-        return self.select(node.childs[idx])
+        def uct(n):
+            return self.values[n] / self.visits[n] + self.c * math.sqrt(
+                math.log(self.visits[node]) / self.visits[n]
+            )
+
+        return max(self.children[node], key=uct)
 
     def expand(self, node):
-        _env = TicTacToe(opponent=self.opponent)
-
-        childs = []
-        for i in range(len(node.invalid_action)):
-            if not node.invalid_action[i]:  # for all valid actions
-                _env.state = deepcopy(node.state)
-                state, _, _, info = _env.step(i)
-                self.n_node += 1
-                childs.append(
-                    Node(
-                        id=self.n_node,
-                        state=state,
-                        invalid_action=info["invalid_action"],
-                        action=i,
-                    )
-                )
-        node.childs = childs
-        return node, True if len(childs) == 0 else False
-
-    def play_out(self, node):
-        value = self.simulate(node)
-        return self.backpropagate(node, value)
+        if node in self.children:
+            return  # already expanded
+        self.children[node] = node.find_children(self.opponent)
 
     def simulate(self, node):
         env = TicTacToe(opponent=self.opponent)
 
         returns = []
         for _ in range(self.k):
-            env.state = deepcopy(node.state)
+            env.state = deepcopy(np.array(node.state).reshape(3, 3, 2))
             done = env.is_terminal()
             G_t = 1 if env.is_win(env.state[..., 0]) else 0
-            invalid_action = node.invalid_action
+            invalid_action = np.array(node.invalid_action)
             while not done:
                 random_action = random_opponent(env.state, invalid_action)
-                state, reward, done, info = env.step(random_action)
+                _, reward, done, info = env.step(random_action)
                 invalid_action = info["invalid_action"]
                 G_t += reward
             returns.append(G_t)
 
         return np.mean(returns)
 
-    def backpropagate(self, node: Node, value: float):
-        node.set_value(value)
-
-        return node
-
-    def visualize(self, node):
-        print(f"Id: {node.id}, action: {node.action}, value: {node.value}")
-        print(f"Childs: {[c.id for c in node.childs]}")
-        _env = TicTacToe(opponent=self.opponent)
-        print(_env.render(node.state))
-        print("================================")
+    def backpropagate(self, path, value):
+        for node in reversed(path):
+            self.visits[node] += 1
+            self.values[node] += value
 
 
 def main():
