@@ -7,7 +7,7 @@ from collections import namedtuple, defaultdict
 import numpy as np
 
 from tictactoe_sp import TicTacToeSP
-from opponent import random_opponent, medium_opponent, expert_opponent
+from opponent import random_opponent
 
 _Node = namedtuple("Node", "state invalid_action terminal status")
 
@@ -34,12 +34,12 @@ class Node(_Node):
 
         return set(children)
 
-    def find_random_chlid(self):
+    def find_random_child(self):
         if sum(self.invalid_action) == 9:
             return None  # Terminal node
         env = TicTacToeSP()
         _ = env.reset(deepcopy(np.array(self.state).reshape(3, 3, 2)))
-        action = random_opponent(self.array(self.invalid_action))
+        action = random_opponent(self.state, self.invalid_action)
         state, _, done, info = env.step(action)
         return Node(
             state=tuple(state.flatten()),
@@ -50,7 +50,7 @@ class Node(_Node):
 
 
 class MCTS:
-    def __init__(self, n=100, k=5, c=math.sqrt(2)):
+    def __init__(self, n=200, k=5, c=math.sqrt(2)):
         self.values = defaultdict(int)  # Value of each node
         self.visits = defaultdict(int)  # Visiting count of each node
         self.children = dict()  # Children nodes of each node
@@ -80,6 +80,7 @@ class MCTS:
 
                 print(env.render(np.array(node.state).reshape(3, 3, 2)))
                 print(f"value: {self.values[node]}")
+                print("-----------------")
 
             print(f"Initial pos: {i}, value: {self.values[node]}, status: {node.status}")
             print("==========")
@@ -137,7 +138,7 @@ class MCTS:
         for _ in range(self.k):
             _ = env.reset(deepcopy(np.array(node.state).reshape(3, 3, 2)))
             done = env.is_terminal()
-            G_t = 1 if env.is_win(env.state[..., env.turn]) else 0
+            G_t = 1 if env.is_win(env.state[..., (env.turn + 1) % 2]) else 0
             invalid_action = np.array(node.invalid_action)
             while not done:
                 random_action = random_opponent(env.state, invalid_action)

@@ -21,8 +21,7 @@ class TicTacToeSP:
         x, y = np.unravel_index(action, (3, 3))
         self.state[x, y, self.turn] = 1
         invalid_action = self.state.sum(axis=-1).flatten()
-        win = self.is_win(self.state[..., 0])
-        lose = self.is_win(self.state[..., 1])
+        win = self.is_win(self.state[..., self.turn])
         draw = invalid_action.sum() >= 9
 
         self.turn = (self.turn + 1) % 2
@@ -37,16 +36,6 @@ class TicTacToeSP:
                     "status": f"{_player[self.turn]} win",
                 },
             )
-        # elif lose:
-        #     return (
-        #         self.state,
-        #         -1.0,
-        #         True,
-        #         {
-        #             "invalid_action": np.ones_like(invalid_action),
-        #             "status": "lose",
-        #         },
-        #     )
         elif draw:
             return (
                 self.state,
