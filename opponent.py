@@ -8,7 +8,7 @@ def random_opponent(obs, invalid_action):
     return action
 
 
-def _medium_opponent(obs, invalid_action, turn=0):
+def move_to_make_three(obs, invalid_action, turn=0):
     empty = obs.sum(axis=-1) == 0
 
     player_board = obs[..., turn]
@@ -45,20 +45,20 @@ def _medium_opponent(obs, invalid_action, turn=0):
 
 
 def medium_opponent(obs, invalid_action, turn=1):
-    action = _medium_opponent(obs, invalid_action, turn)
-    if action:
+    action = move_to_make_three(obs, invalid_action, turn)
+    if action is not None:
         return action
     else:
         return random_opponent(obs, invalid_action)
 
 
 def expert_opponent(obs, invalid_action, turn=1):
-    action = _medium_opponent(obs, invalid_action, turn)
-    if action:
+    action = move_to_make_three(obs, invalid_action, turn)
+    if action is not None:
         return action
 
-    action = _medium_opponent(obs, invalid_action, (turn + 1) % 2)
-    if action:
+    action = move_to_make_three(obs, invalid_action, (turn + 1) % 2)
+    if action is not None:
         return action
     else:
         return random_opponent(obs, invalid_action)
