@@ -15,7 +15,10 @@ class TicTacToeSP:
         else:
             self.state = np.zeros((3, 3, 2))
             self.turn = 0
-        return self.state, {"invalid_action": self.state.sum(axis=-1).flatten()}
+        return self.state, {
+            "invalid_action": self.state.sum(axis=-1).flatten(),
+            "status": "continue",
+        }
 
     def step(self, action):
         x, y = np.unravel_index(action, (3, 3))

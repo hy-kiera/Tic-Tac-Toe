@@ -60,17 +60,25 @@ class MCTS:
         self.k = k  # The number of simulation
 
     def run(self):
+        print("Start to train MCTS policy")
+        env = TicTacToeSP()
+        state, info = env.reset()
+        root = Node(
+            state=tuple(state.flatten()),
+            invalid_action=tuple(info["invalid_action"]),
+            terminal=env.is_terminal(),
+            status=info["status"],
+        )
         for i in range(9):
-            env = TicTacToeSP()
             _ = env.reset()
             state, _, done, info = env.step(i)  # initial position is at each cell
-            self.root = Node(
+            node = Node(
                 state=tuple(state.flatten()),
                 invalid_action=tuple(info["invalid_action"]),
                 terminal=done,
                 status=info["status"],
             )
-            node = self.root
+            self.children[root] = set([node])
             print(env.render(np.array(node.state).reshape(3, 3, 2)))
 
             while not node.terminal:
@@ -82,7 +90,7 @@ class MCTS:
                 print(f"value: {self.values[node]}")
                 print("-----------------")
 
-            print(f"Initial pos: {i}, value: {self.values[node]}, status: {node.status}")
+            print(f"Initial pos: {i}, status: {node.status}")
             print("==========")
 
     def choose(self, node):
@@ -155,22 +163,55 @@ class MCTS:
             self.values[node] += value
             value = -value
 
+    def select_action(self, state, invalid_action, done, status):
+        node = Node(
+            state=tuple(state.flatten()),
+            invalid_action=tuple(invalid_action),
+            terminal=done,
+            status=status,
+        )
+
+        try:
+            greedy_node = max(self.children[node], key=lambda n: self.values[n])  # greedy
+            action = np.nonzero(greedy_node.invalid_action - invalid_action)[0]
+        except KeyError:
+            print("Oops! I encountered this state at first, so I'll take a random action:(")
+            action = random_opponent(state, invalid_action)
+
+        return action
+
 
 def play_game(player1, player2):
     env = TicTacToeSP()
     obs, info = env.reset()
     done = False
+    done = env.is_terminal()
 
     print("===============================")
     print("====Let's play Tic-Tac-Toe!====")
     print("===============================")
     print(env.render(obs))
     while not done:
-        action = int(input("Move :"))
-        print(f"Turn: {env.turn}")
+        if env.turn == 0:
+            print("=> Player 1 turn")
+            if isinstance(player1, str):
+                action = int(input("Input (0-8): "))
+            else:
+                action = player1.select_action(obs, info["invalid_action"], done, info["status"])
+        else:
+            print("=> Player 2 turn")
+            if isinstance(player2, str):
+                action = int(input("Input (0-8): "))
+            else:
+                action = player2.select_action(obs, info["invalid_action"], done, info["status"])
         obs, reward, done, info = env.step(action)
         print(env.render(obs))
-        print(f"reward: {reward}, status: {info['status']}")
+    if env.is_win(env.state[..., 0]):
+        print("Player 1 win!")
+    elif env.is_win(env.state[..., 1]):
+        print("Player 2 win!")
+    else:
+        print("Draw!")
 
 
 def main():
@@ -179,10 +220,10 @@ def main():
     seed = 0
     np.random.seed(seed)
 
-    # play_game(None, None)
-
     mcts = MCTS()
     mcts.run()
+
+    play_game(mcts, mcts)
 
 
 if __name__ == "__main__":
