@@ -5,7 +5,7 @@ from opponent import random_opponent
 
 class TicTacToe:
     def __init__(self, opponent=random_opponent):
-        self.state = np.zeros((3, 3, 2))
+        self.state = np.zeros((3, 3, 2))  # 3×3 grid for each player and the opponent
         self.opponent = opponent
 
     def step(self, action):
@@ -78,8 +78,11 @@ class TicTacToe:
             | (np.diag(player_grid[::-1]).sum() == 3)
         )
 
-    def reset(self):
-        self.state = np.zeros((3, 3, 2))
+    def reset(self, reset_state=None):
+        if reset_state is not None:
+            self.state = reset_state
+        else:
+            self.state = np.zeros((3, 3, 2))
         return self.state, {"invalid_action": self.state.sum(axis=-1).flatten()}
 
     def render(self, state=None):

@@ -37,8 +37,8 @@ class Node(_Node):
     def find_random_chlid(self, opponent):
         if sum(self.invalid_action) == 9:
             return None  # Terminal node
-        env = TicTacToe(opponent)
-        env.state = deepcopy(np.array(self.state).reshape(3, 3, 2))
+        env = TicTacToe(opponent=opponent)
+        _ = env.reset(deepcopy(np.array(self.state).reshape(3, 3, 2)))
         action = random_opponent(self.array(self.invalid_action))
         state, _, done, info = env.step(action)
         return Node(
@@ -50,7 +50,7 @@ class Node(_Node):
 
 
 class MCTS:
-    def __init__(self, opponent=random_opponent, n=50, k=5, c=math.sqrt(2)):
+    def __init__(self, opponent=random_opponent, n=80, k=5, c=math.sqrt(2)):
         self.values = defaultdict(int)  # Value of each node
         self.visits = defaultdict(int)  # Visiting count of each node
         self.children = dict()  # Children nodes of each node
@@ -137,7 +137,7 @@ class MCTS:
 
         returns = []
         for _ in range(self.k):
-            env.state = deepcopy(np.array(node.state).reshape(3, 3, 2))
+            _ = env.reset(deepcopy(np.array(node.state).reshape(3, 3, 2)))
             done = env.is_terminal()
             G_t = 1 if env.is_win(env.state[..., 0]) else 0
             invalid_action = np.array(node.invalid_action)
