@@ -1,74 +1,22 @@
 import numpy as np
-
-from opponent import random_opponent
+from typing import Callable
 
 
 class TicTacToe:
-    def __init__(self, opponent=random_opponent):
-        self.state = np.zeros((3, 3, 2))  # 3×3 grid for each player and the opponent
-        self.opponent = opponent
-
-    def step(self, action):
+    def step(self, state: np.ndarray, action: int):
+        turn = state.sum() % 2 
         x, y = np.unravel_index(action, (3, 3))
-        self.state[x, y, 0] = 1
-        invalid_action = self.state.sum(axis=-1).flatten()
+        next_state = state.copy()
+        if next_state[x, y].sum() >= 1:
+            raise ValueError
+        next_state[x, y, turn] = 1
+        
+        
+        invalid_action = next_state.sum(axis=-1).flatten() > 0
         draw = invalid_action.sum() >= 9
-        is_win = self.is_win(self.state[..., 0])
-
-        if is_win:
-            return (
-                self.state,
-                1.0,
-                True,
-                {"invalid_action": np.ones_like(invalid_action), "status": "win"},
-            )
-        elif draw:
-            return (
-                self.state,
-                0.0,
-                True,
-                {"invalid_action": np.ones_like(invalid_action), "status": "draw"},
-            )
-
-        opponent_action = self.opponent(self.state, invalid_action)
-        x, y = np.unravel_index(opponent_action, (3, 3))
-        self.state[x, y, 1] = 1
-        enemy_win = self.is_win(self.state[..., 1])
-        invalid_action = self.state.sum(axis=-1).flatten()
-
-        if enemy_win:
-            return (
-                self.state,
-                -1.0,
-                True,
-                {
-                    "invalid_action": np.ones_like(invalid_action),
-                    "opponent_action": opponent_action,
-                    "status": "lose",
-                },
-            )
-
-        return (
-            self.state,
-            0.0,
-            False,
-            {
-                "invalid_action": invalid_action,
-                "opponent_action": opponent_action,
-                "status": "continue",
-            },
-        )
-
-    def is_terminal(self, state=None):
-        if state is None:
-            state = self.state
-
-        invalid_action = self.state.sum(axis=-1).flatten()
-        draw = invalid_action.sum() >= 9
-        is_win = self.is_win(self.state[..., 0])
-        enemy_win = self.is_win(self.state[..., 1])
-
-        return draw or is_win or enemy_win
+        is_win = self.is_win(next_state[..., turn])
+        done = draw or is_win
+        return next_state, is_win, done, {'invalid_action': invalid_action}
 
     def is_win(self, player_grid):
         return np.any(
@@ -78,16 +26,11 @@ class TicTacToe:
             | (np.diag(player_grid[::-1]).sum() == 3)
         )
 
-    def reset(self, reset_state=None):
-        if reset_state is not None:
-            self.state = reset_state
-        else:
-            self.state = np.zeros((3, 3, 2))
-        return self.state, {"invalid_action": self.state.sum(axis=-1).flatten()}
+    def reset(self):
+        env_state = np.zeros((3, 3, 2), dtype=np.bool_)
+        return env_state, {"invalid_action": env_state.sum(axis=-1).flatten()}
 
-    def render(self, state=None):
-        if state is None:
-            state = self.state
+    def render(self, state):
         text = ""
         for xs in state:
             text += "|"
@@ -97,3 +40,30 @@ class TicTacToe:
             text += "\n"
 
         return text
+    
+    
+class TicTacToeOpponentWrapper:
+    def __init__(self, env: TicTacToe, opponent: Callable[[np.ndarray, np.ndarray], int]):
+        self.env = env
+        self.opponent = opponent
+
+    def step(self, state: np.ndarray, action: int):
+        next_state, is_win, done, info = self.env.step(state, action)
+        if done or is_win:
+            return next_state, is_win, done, info
+        else:
+            action = self.opponent(next_state, info['invalid_action'])
+            next_state, is_defeat, done, info = self.env.step(next_state, action)
+            return next_state, -1 if is_defeat == 1 else 0, done, info
+    
+    def reset(self, player_first = True):
+        if player_first:
+            return self.env.reset()
+        else:
+            state, info = self.env.reset()
+            action = self.opponent(state, info['invalid_action'])
+            next_state, _, _, info = self.env.step(state, action)
+            return next_state, info
+    
+    def render(self, state: np.ndarray):
+        return self.env.render(state)
